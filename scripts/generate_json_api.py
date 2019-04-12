@@ -66,43 +66,144 @@ class Examples(CommandTestCase):
     async def play(self):
         r = self.recorder
 
+        # general sdk
+
         await r(
-            'List your accounts.',
+            'Get Status',
+            'status'
+        )
+        await r(
+            'Get Version',
+            'version'
+        )
+        await r(
+            'Get Settings',
+            'settings', 'get'
+        )
+
+        # accounts
+
+        await r(
+            'List your accounts',
             'account', 'list'
         )
 
         account = await r(
-            'Create an account.',
+            'Create an account',
             'account', 'create', '"generated account"'
         )
 
         await r(
-            'Remove an account.',
-            'account', 'remove', account['id']
-        )
-
-        await r(
-            'Add an account from seed.',
+            'Add an account from seed',
             'account', 'add', '"new account"', f"--seed=\"{account['seed']}\""
         )
 
         await r(
-            'Modify maximum number of times a change address can be reused.',
+            'Modify maximum number of times a change address can be reused',
             'account', 'set', account['id'], '--change_max_uses=10'
         )
 
+        # addresses
+
+        await r(
+            'List addresses in default account',
+            'address', 'list'
+        )
+
+        an_address = await r(
+            'Get an unused address',
+            'address', 'unused'
+        )
+
+        address_list_by_id = await r(
+            'List addresses in specified account',
+            'address', 'list', f"--account_id=\"{account['id']}\""
+        )
+
+        await r(
+            'Check if address is mine',
+            'address', 'is_mine', an_address
+        )
+
+        # send/fund
+
+        transfer = await r(
+            'Transfer LBC',
+            'account', 'fund', f"--to_account=\"{account['id']}\"", "--amount=2.0", "--broadcast"
+        )
+
+        await self.on_transaction_dict(transfer)
+        await self.generate(1)
+        await self.on_transaction_dict(transfer)
+
+        await r(
+            'Get Default Account balance',
+            'account', 'balance'
+        )
+
+        txlist = await r(
+            'List Transactions',
+            'transaction', 'list'
+        )
+
+        # await r(
+        #     'Show a transaction'
+        #     'transaction', 'show', f"\"{txlist[0]['txid']}\""
+        # )
+
+        await r(
+            'Get Account balance by id',
+            'account', 'balance', f"\"{account['id']}\""
+        )
+
+        spread_transaction = await r(
+            'Spread LBC Between Multiple Addresses',
+            'account', 'fund', f"--to_account=\"{account['id']}\"", f"--from_account=\"{account['id']}\"", '--amount=1.5', '--outputs=2', '--broadcast'
+        )
+
+        await self.on_transaction_dict(spread_transaction)
+        await self.generate(1)
+        await self.on_transaction_dict(spread_transaction)
+
+        await r(
+            'Transfer All LBC',
+            'account', 'fund', f"--from_account=\"{account['id']}\"", "--everything", "--broadcast"
+        )
+
+        await r(
+            'Remove an account',
+            'account', 'remove', account['id']
+        )
+
+
+        # channel claims
+
         channel = await r(
-            'Create a channel claim.',
+            'Create a channel claim',
             'channel', 'create', '@channel', '1.0'
         )
+        channel_id = channel['outputs'][0]['claim_id']
         await self.on_transaction_dict(channel)
         await self.generate(1)
         await self.on_transaction_dict(channel)
 
+        await r(
+            'List your channel claims',
+            'channel', 'list'
+        )
+
+        await r(
+            'Paginate your channel claims',
+            'channel', 'list', '--page=1', '--page_size=20'
+        )
+
         channel = await r(
-            'Update a channel claim.',
+            'Update a channel claim',
             'channel', 'update', channel['outputs'][0]['claim_id'], '--title="New Channel"'
         )
+
+        # stream claims
+
         await self.on_transaction_dict(channel)
         await self.generate(1)
         await self.on_transaction_dict(channel)
@@ -111,15 +212,16 @@ class Examples(CommandTestCase):
             file.write(b'hello world')
             file.flush()
             stream = await r(
-                'Create a stream claim.',
+                'Create a stream claim',
                 'stream', 'create', 'astream', '1.0', file.name
             )
             await self.on_transaction_dict(stream)
             await self.generate(1)
             await self.on_transaction_dict(stream)
-
+        stream_id = stream['outputs'][0]['claim_id']
+        stream_name = stream['outputs'][0]['name']
         stream = await r(
-            'Update a stream claim to add channel.',
+            'Update a stream claim to add channel',
             'stream', 'update', stream['outputs'][0]['claim_id'],
             f"--channel_id={channel['outputs'][0]['claim_id']}"
         )
@@ -128,37 +230,96 @@ class Examples(CommandTestCase):
         await self.on_transaction_dict(stream)
 
         await r(
-            'List all your claims.',
+            'List all your claims',
             'claim', 'list'
         )
 
         await r(
-            'Paginate your claims.',
+            'Paginate your claims',
             'claim', 'list', '--page=1', '--page_size=20'
         )
 
         await r(
-            'List all your stream claims.',
+            'List all your stream claims',
             'stream', 'list'
         )
 
         await r(
-            'Paginate your stream claims.',
+            'Paginate your stream claims',
             'stream', 'list', '--page=1', '--page_size=20'
         )
 
         await r(
-            'List all your channel claims.',
-            'channel', 'list'
+            'Search for all claims in channel',
+            'claim', 'search', f"--channel_id=\"{channel_id}\""
         )
 
         await r(
-            'Paginate your channel claims.',
-            'channel', 'list', '--page=1', '--page_size=20'
+            'Search for claims matching a name',
+            'claim', 'search', f"--name=\"{stream_name}\""
         )
 
+
+        # files
+
+        file_list_result = await r(
+            'List local files',
+            'file', 'list'
+        )
+        file_uri = f"{file_list_result[0]['claim_name']}#{file_list_result[0]['claim_id']}"
+        await r(
+            'Resolve a claim',
+            'resolve', file_uri
+        )
+
+        await r(
+            'List files matching a parameter',
+            'file', 'list', f"--claim_id=\"{file_list_result[0]['claim_id']}\""
+        )
+
+        await r(
+            'Delete a file',
+            'file', 'delete', f"--claim_id=\"{file_list_result[0]['claim_id']}\""
+        )
+
+        await r(
+            'Get a file',
+            'get', file_uri
+        )
+
+        # blobs
+
+        bloblist = await r(
+            'List Blobs',
+            'blob', 'list'
+        )
+        # NOT IMPLEMENTED
+        # await r(
+        #     'Reflect a blob',
+        #     'blob', 'reflect', f"{bloblist}"
+        # )
+
+        # NO DHT
+        # await r(
+        #     'Get a blob',
+        #     'blob', 'get', f"\"{bloblist[0]}\""
+        # )
+        # await r(
+        #     'Announce a blob',
+        #     'blob', 'announce', f"--blob_hash={bloblist[0]}"
+        # )
+        await r(
+            'Delete a blob',
+            'blob', 'delete', f"{bloblist[0]}"
+        )
+
+
+        # support
+
+        # destroy
+
         abandon_stream = await r(
-            'Abandon a stream claim.',
+            'Abandon a stream claim',
             'stream', 'abandon', stream['outputs'][0]['claim_id']
         )
         await self.on_transaction_dict(abandon_stream)
@@ -166,7 +327,7 @@ class Examples(CommandTestCase):
         await self.on_transaction_dict(abandon_stream)
 
         abandon_channel = await r(
-            'Abandon a channel claim.',
+            'Abandon a channel claim',
             'channel', 'abandon', channel['outputs'][0]['claim_id']
         )
         await self.on_transaction_dict(abandon_channel)
@@ -177,13 +338,12 @@ class Examples(CommandTestCase):
             file.write(b'hello world')
             file.flush()
             stream = await r(
-                'Publish a file.',
+                'Publish a file',
                 'publish', 'a-new-stream', '--bid=1.0', f'--file_path={file.name}'
             )
             await self.on_transaction_dict(stream)
             await self.generate(1)
             await self.on_transaction_dict(stream)
-
 
 def get_examples():
     player = Examples('play')
